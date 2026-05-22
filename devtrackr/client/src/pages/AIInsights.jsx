@@ -1,4 +1,4 @@
-import React, { useState } from 'react';
+import React, { useState, useEffect, useRef } from 'react';
 import useAIInsights from '../hooks/useAIInsights';
 import { useDashboard } from '../context/DashboardContext';
 import Layout from '../components/layout/Layout';
@@ -24,6 +24,15 @@ const AIInsights = () => {
   const [successMsg, setSuccessMsg] = useState('');
 
   const activeReport = reports.find(r => r._id === activeReportId) || reports[0];
+  const reportViewerRef = useRef(null);
+
+  useEffect(() => {
+    if (activeReportId && reportViewerRef.current) {
+      if (window.innerWidth < 1024) {
+        reportViewerRef.current.scrollIntoView({ behavior: 'smooth', block: 'start' });
+      }
+    }
+  }, [activeReportId]);
 
   const handleRunReport = async (type) => {
     if (!selectedRepo) return;
@@ -216,7 +225,7 @@ const AIInsights = () => {
         </div>
 
         {/* Right Side: Elegant AI Report Viewer */}
-        <div className="lg:col-span-2 space-y-6">
+        <div ref={reportViewerRef} className="lg:col-span-2 space-y-6">
           {activeReport ? (
             <div className="glass-card p-8 border border-white/5 space-y-6 animate-in fade-in duration-300 font-outfit">
               
