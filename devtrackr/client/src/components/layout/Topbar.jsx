@@ -15,8 +15,10 @@ const Topbar = ({ title }) => {
   const { logout } = useAuth();
   const [mobileMenuOpen, setMobileMenuOpen] = useState(false);
 
+  const isSelectedRepoSyncing = selectedRepo?.syncStatus === 'syncing';
+
   const handleSyncClick = async () => {
-    if (!selectedRepo || syncing) return;
+    if (!selectedRepo || isSelectedRepoSyncing) return;
     try {
       await syncActiveRepo();
     } catch (err) {
@@ -69,16 +71,16 @@ const Topbar = ({ title }) => {
           <Button
             variant="outline"
             onClick={handleSyncClick}
-            disabled={syncing}
+            disabled={isSelectedRepoSyncing}
             className={`!py-1.5 !px-3 font-outfit flex items-center gap-1.5 ${
-              syncing ? 'bg-primary-container/10 border-primary/20 text-primary' : ''
+              isSelectedRepoSyncing ? 'bg-primary-container/10 border-primary/20 text-primary' : ''
             }`}
           >
-            <span className={`material-symbols-outlined text-[18px] ${syncing ? 'animate-spin text-primary' : ''}`}>
+            <span className={`material-symbols-outlined text-[18px] ${isSelectedRepoSyncing ? 'animate-spin text-primary' : ''}`}>
               sync
             </span>
             <span className="text-[12px] font-semibold hidden sm:inline">
-              {syncing ? 'Syncing...' : 'Sync'}
+              {isSelectedRepoSyncing ? 'Syncing...' : 'Sync'}
             </span>
           </Button>
         )}

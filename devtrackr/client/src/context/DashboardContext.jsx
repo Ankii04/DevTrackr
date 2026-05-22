@@ -29,6 +29,7 @@ export const DashboardProvider = ({ children }) => {
   const [error, setError] = useState(null);
 
   const pollIntervalRef = useRef(null);
+  const syncingRepoIdsRef = useRef(new Set());
 
   // Clear polling on unmount
   useEffect(() => {
@@ -45,6 +46,12 @@ export const DashboardProvider = ({ children }) => {
       setRepos([]);
       setSelectedRepo(null);
       localStorage.removeItem('selectedRepo');
+      if (pollIntervalRef.current) {
+        clearInterval(pollIntervalRef.current);
+        pollIntervalRef.current = null;
+      }
+      syncingRepoIdsRef.current.clear();
+      setSyncing(false);
     }
   }, [isAuthenticated]);
 
@@ -65,6 +72,13 @@ export const DashboardProvider = ({ children }) => {
     try {
       const data = await githubApi.getRepos();
       setRepos(data);
+
+      // Start polling for any repositories that are currently syncing in the background
+      data.forEach(repo => {
+        if (repo.syncStatus === 'syncing') {
+          startPollingSync(repo._id);
+        }
+      });
       
       // If we don't have a selected repo yet, auto select the first one
       if (data.length > 0 && !selectedRepo) {
@@ -87,9 +101,8 @@ export const DashboardProvider = ({ children }) => {
     setSelectedRepo(repo);
     localStorage.setItem('selectedRepo', JSON.stringify(repo));
     setError(null);
-    if (pollIntervalRef.current) {
-      clearInterval(pollIntervalRef.current);
-      setSyncing(false);
+    if (repo.syncStatus === 'syncing') {
+      startPollingSync(repo._id);
     }
   };
 
@@ -133,33 +146,51 @@ export const DashboardProvider = ({ children }) => {
 
   // Polls backend to check on background sync status
   const startPollingSync = (repoId) => {
-    if (pollIntervalRef.current) clearInterval(pollIntervalRef.current);
+    syncingRepoIdsRef.current.add(repoId);
     setSyncing(true);
+
+    if (pollIntervalRef.current) return;
 
     pollIntervalRef.current = setInterval(async () => {
       try {
         const reposList = await githubApi.getRepos();
         setRepos(reposList);
-        
-        const currentRepo = reposList.find(r => r._id === repoId);
-        if (currentRepo) {
-          setSelectedRepo(currentRepo);
-          localStorage.setItem('selectedRepo', JSON.stringify(currentRepo));
 
-          if (currentRepo.syncStatus !== 'syncing') {
-            console.log(`[DASHBOARD CONTEXT] Background sync finished with status: ${currentRepo.syncStatus}`);
-            clearInterval(pollIntervalRef.current);
-            setSyncing(false);
-            
-            // Reload fresh synced stats
-            fetchAnalytics(repoId);
-            fetchAIReports(repoId);
+        const finishedIds = [];
+
+        syncingRepoIdsRef.current.forEach(id => {
+          const repo = reposList.find(r => r._id === id);
+          if (repo) {
+            // Only update selectedRepo if it matches the repo currently being polled
+            if (selectedRepo && selectedRepo._id === id) {
+              setSelectedRepo(repo);
+              localStorage.setItem('selectedRepo', JSON.stringify(repo));
+            }
+
+            if (repo.syncStatus !== 'syncing') {
+              console.log(`[DASHBOARD CONTEXT] Background sync finished for ${repo.name} with status: ${repo.syncStatus}`);
+              finishedIds.push(id);
+              
+              // Reload fresh synced stats if it is currently selected
+              if (selectedRepo && selectedRepo._id === id) {
+                fetchAnalytics(id);
+                fetchAIReports(id);
+              }
+            }
+          } else {
+            finishedIds.push(id);
           }
+        });
+
+        finishedIds.forEach(id => syncingRepoIdsRef.current.delete(id));
+
+        if (syncingRepoIdsRef.current.size === 0) {
+          clearInterval(pollIntervalRef.current);
+          pollIntervalRef.current = null;
+          setSyncing(false);
         }
       } catch (err) {
         console.error('[DASHBOARD CONTEXT] Sync polling error:', err);
-        clearInterval(pollIntervalRef.current);
-        setSyncing(false);
       }
     }, 3000); // Poll every 3 seconds
   };
@@ -167,6 +198,7 @@ export const DashboardProvider = ({ children }) => {
   const syncActiveRepo = async (repoId) => {
     const targetId = repoId || selectedRepo?._id;
     if (!targetId) return;
+    
     setSyncing(true);
     try {
       const data = await githubApi.syncRepo(targetId);
@@ -183,11 +215,14 @@ export const DashboardProvider = ({ children }) => {
         localStorage.setItem('selectedRepo', JSON.stringify(updatedRepo));
       }
 
-      // Trigger polling loop
+      // Trigger polling loop for this specific repo
       startPollingSync(targetId);
       return data;
     } catch (err) {
-      setSyncing(false);
+      // Set syncing back to false if no other repo is actively polling
+      if (syncingRepoIdsRef.current.size === 0) {
+        setSyncing(false);
+      }
       const errMsg = err.response?.data?.error || 'Failed to trigger synchronization';
       setError(errMsg);
       throw errMsg;
