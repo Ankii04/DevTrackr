@@ -73,7 +73,7 @@ const Settings = () => {
     );
   }
 
-  const isGitHubConnected = !!user.githubAccessToken && !!user.githubUsername;
+  const isGitHubConnected = !!user.githubUsername;
 
   return (
     <Layout title="Settings">
