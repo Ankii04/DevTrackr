@@ -138,7 +138,7 @@ const SprintAnalysis = () => {
             <StatCard 
               title="Linked Pull Requests" 
               value={analyticsData.prs?.total || 0} 
-              icon="git_pull_request"
+              icon="call_merge"
               color="amber"
             />
           </div>

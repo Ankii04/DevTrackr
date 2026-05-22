@@ -171,10 +171,27 @@ async function generateSprintSummary(repositoryId, userId) {
   const commits = await CommitSnapshot.find({ repositoryId }).sort({ date: -1 }).limit(50);
   const prs = await PullRequest.find({ repositoryId }).sort({ createdAt: -1 }).limit(30);
   
-  // Fetch raw issues from GitHub sync via DB - we filter in controller but let's query cached pull requests and assume issues
-  // Since we don't have a separate Issue collection (they are aggregated inRepository stats, but we can query pull requests)
-  // Let's pass what we have
-  const prompt = prompts.sprintSummaryPrompt(repo.fullName, commits, prs, []);
+  // Simplify objects to only include essential fields, cutting token footprint by up to 90%
+  const simplifiedCommits = commits.map(c => ({
+    sha: c.sha ? c.sha.substring(0, 7) : '',
+    message: c.message,
+    author: c.author?.login || c.author?.name || 'unknown',
+    date: c.date,
+    additions: c.additions,
+    deletions: c.deletions
+  }));
+
+  const simplifiedPRs = prs.map(p => ({
+    number: p.number,
+    title: p.title,
+    state: p.state,
+    author: p.author,
+    createdAt: p.createdAt,
+    mergedAt: p.mergedAt,
+    cycleTimeHours: p.cycleTimeHours
+  }));
+
+  const prompt = prompts.sprintSummaryPrompt(repo.fullName, simplifiedCommits, simplifiedPRs, []);
   return await callGemini(prompt, 'sprint', repositoryId, userId, repo.name);
 }
 
@@ -186,7 +203,18 @@ async function generateCommitInsights(repositoryId, userId) {
   if (!repo) throw new Error('Repository not found');
 
   const commits = await CommitSnapshot.find({ repositoryId }).sort({ date: -1 }).limit(60);
-  const prompt = prompts.commitInsightsPrompt(commits);
+
+  // Simplify objects to only include essential fields, cutting token footprint by up to 90%
+  const simplifiedCommits = commits.map(c => ({
+    sha: c.sha ? c.sha.substring(0, 7) : '',
+    message: c.message,
+    author: c.author?.login || c.author?.name || 'unknown',
+    date: c.date,
+    additions: c.additions,
+    deletions: c.deletions
+  }));
+
+  const prompt = prompts.commitInsightsPrompt(simplifiedCommits);
 
   const report = await callGemini(prompt, 'contributor', repositoryId, userId, repo.name);
   return report;
@@ -213,7 +241,19 @@ async function generateBottlenecks(repositoryId, userId) {
   });
   const contributors = Array.from(contributorsMap.values());
 
-  const prompt = prompts.bottleneckPrompt(prs, [], contributors);
+  // Simplify objects to only include essential fields, cutting token footprint by up to 90%
+  const simplifiedPRs = prs.map(p => ({
+    number: p.number,
+    title: p.title,
+    state: p.state,
+    author: p.author,
+    createdAt: p.createdAt,
+    mergedAt: p.mergedAt,
+    closedAt: p.closedAt,
+    cycleTimeHours: p.cycleTimeHours
+  }));
+
+  const prompt = prompts.bottleneckPrompt(simplifiedPRs, [], contributors);
   return await callGemini(prompt, 'bottleneck', repositoryId, userId, repo.name);
 }
 
@@ -225,7 +265,17 @@ async function generateTaskPrioritization(repositoryId, userId) {
   if (!repo) throw new Error('Repository not found');
 
   const prs = await PullRequest.find({ repositoryId, state: 'open' }).limit(30);
-  const prompt = prompts.taskPrioritizationPrompt([], prs);
+
+  // Simplify objects to only include essential fields, cutting token footprint by up to 90%
+  const simplifiedPRs = prs.map(p => ({
+    number: p.number,
+    title: p.title,
+    state: p.state,
+    author: p.author,
+    createdAt: p.createdAt
+  }));
+
+  const prompt = prompts.taskPrioritizationPrompt([], simplifiedPRs);
 
   return await callGemini(prompt, 'prioritization', repositoryId, userId, repo.name);
 }

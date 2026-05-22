@@ -327,7 +327,7 @@ const AIInsights = () => {
                   {activeReport.content?.details?.stalePRs && activeReport.content.details.stalePRs.length > 0 && (
                     <div className="space-y-3">
                       <h5 className="font-bold text-[14px] text-amber-500 flex items-center gap-1.5">
-                        <span className="material-symbols-outlined text-[18px]">git_pull_request</span>
+                        <span className="material-symbols-outlined text-[18px]">call_merge</span>
                         Stale Pull Requests Needing Review
                       </h5>
                       <div className="bg-surface-container-low rounded-xl border border-white/5 overflow-hidden">

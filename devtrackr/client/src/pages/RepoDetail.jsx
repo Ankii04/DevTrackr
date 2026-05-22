@@ -129,7 +129,7 @@ const RepoDetail = () => {
   const tabs = [
     { id: 'overview', name: 'Overview', icon: 'grid_view' },
     { id: 'commits', name: 'Commits', icon: 'history' },
-    { id: 'prs', name: 'Pull Requests', icon: 'git_pull_request' },
+    { id: 'prs', name: 'Pull Requests', icon: 'call_merge' },
     { id: 'issues', name: 'Issues', icon: 'bug_report' },
     { id: 'ai', name: 'AI Analysis', icon: 'psychology' }
   ];
@@ -264,7 +264,7 @@ const RepoDetail = () => {
                 <StatCard 
                   title="Active Pull Requests" 
                   value={prs?.open || 0} 
-                  icon="git_pull_request"
+                  icon="call_merge"
                   color="amber"
                 />
                 <StatCard 

@@ -170,7 +170,7 @@ const Dashboard = () => {
             <StatCard 
               title="Linked Pull Requests" 
               value={prsCount} 
-              icon="git_pull_request"
+              icon="call_merge"
               color="amber"
             />
             <StatCard 
