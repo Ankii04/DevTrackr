@@ -5,6 +5,7 @@ import * as githubApi from '../api/githubApi';
 export const useGitHub = () => {
   const {
     repos,
+    reposLoading,
     selectedRepo,
     syncing,
     fetchRepositories,
@@ -33,6 +34,7 @@ export const useGitHub = () => {
 
   return {
     repos,
+    reposLoading,
     selectedRepo,
     syncing,
     loading,

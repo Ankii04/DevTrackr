@@ -26,6 +26,7 @@ export const DashboardProvider = ({ children }) => {
   const [syncing, setSyncing] = useState(false);
   const [analyticsLoading, setAnalyticsLoading] = useState(false);
   const [aiLoading, setAiLoading] = useState(false);
+  const [reposLoading, setReposLoading] = useState(false);
   const [error, setError] = useState(null);
 
   const pollIntervalRef = useRef(null);
@@ -69,6 +70,8 @@ export const DashboardProvider = ({ children }) => {
   }, [selectedRepo, isAuthenticated]);
 
   const fetchRepositories = async () => {
+    setReposLoading(true);
+    setError(null);
     try {
       const data = await githubApi.getRepos();
       setRepos(data);
@@ -94,6 +97,8 @@ export const DashboardProvider = ({ children }) => {
     } catch (err) {
       console.error('[DASHBOARD CONTEXT] Failed fetching repos:', err);
       setError(err.response?.data?.error || 'Failed to fetch repositories');
+    } finally {
+      setReposLoading(false);
     }
   };
 
@@ -231,6 +236,7 @@ export const DashboardProvider = ({ children }) => {
 
   const value = {
     repos,
+    reposLoading,
     selectedRepo,
     analyticsData,
     aiReports,

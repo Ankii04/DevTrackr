@@ -10,8 +10,10 @@ import { formatDate, timeAgo } from '../utils/dateHelpers';
 const Repositories = () => {
   const { 
     repos, 
+    reposLoading,
     syncing, 
     loading, 
+    error,
     fetchRepos, 
     selectRepo, 
     syncRepo, 
@@ -93,7 +95,29 @@ const Repositories = () => {
       </div>
 
       {/* Main Grid display */}
-      {repos.length === 0 ? (
+      {reposLoading ? (
+        <div className="flex flex-col items-center justify-center py-20 space-y-4 max-w-lg mx-auto">
+          <div className="w-12 h-12 border-4 border-primary/20 border-t-primary rounded-full animate-spin"></div>
+          <p className="font-outfit text-body-md text-on-surface-variant">Fetching synchronized repositories...</p>
+        </div>
+      ) : error ? (
+        <div className="glass-card p-8 border border-error/15 text-center space-y-4 max-w-lg mx-auto mt-8">
+          <div className="p-3 bg-error/10 text-error w-12 h-12 rounded-full flex items-center justify-center mx-auto border border-error/20">
+            <span className="material-symbols-outlined text-[24px]">warning</span>
+          </div>
+          <div className="space-y-1">
+            <h3 className="font-outfit text-body-lg font-bold text-on-surface">Failed to load repositories</h3>
+            <p className="font-outfit text-body-sm text-on-surface-variant leading-relaxed">
+              {error}
+            </p>
+          </div>
+          <div className="pt-2">
+            <Button onClick={fetchRepos} className="bg-primary text-on-primary font-bold py-2 px-5 rounded-lg text-[12px]">
+              Retry Loading Repositories
+            </Button>
+          </div>
+        </div>
+      ) : repos.length === 0 ? (
         <div className="glass-card p-12 border border-white/5 text-center space-y-6 max-w-lg mx-auto mt-8 select-none">
           <div className="p-4 bg-primary-container/10 text-primary w-16 h-16 rounded-full flex items-center justify-center mx-auto border border-primary/20">
             <span className="material-symbols-outlined text-[32px]">folder_git</span>

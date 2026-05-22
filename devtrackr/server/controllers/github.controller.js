@@ -225,10 +225,9 @@ exports.repos = async (req, res, next) => {
     console.log(`[GITHUB REPOS] Querying live repositories for ${user.githubUsername}...`);
     const liveRepos = await githubService.fetchUserRepos(user.githubAccessToken);
 
-    const savedRepos = [];
-    for (const r of liveRepos) {
-      // Upsert repository into database caching layer
-      const repo = await Repository.findOneAndUpdate(
+    // Speed up database upserts by running them in parallel
+    const upsertPromises = liveRepos.map(r => {
+      return Repository.findOneAndUpdate(
         { userId: user._id, githubRepoId: r.id },
         {
           fullName: r.full_name,
@@ -239,8 +238,9 @@ exports.repos = async (req, res, next) => {
         },
         { upsert: true, new: true }
       );
-      savedRepos.push(repo);
-    }
+    });
+
+    const savedRepos = await Promise.all(upsertPromises);
 
     // Return the cached/upserted repository array
     res.json(savedRepos);
