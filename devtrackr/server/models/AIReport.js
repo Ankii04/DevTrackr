@@ -41,6 +41,14 @@ const AIReportSchema = new mongoose.Schema({
   tokensUsed: {
     type: Number,
     default: 0
+  },
+  isMock: {
+    type: Boolean,
+    default: false
+  },
+  mockReason: {
+    type: String,
+    default: ''
   }
 });
 

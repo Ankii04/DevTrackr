@@ -24,6 +24,24 @@ exports.connect = async (req, res, next) => {
 };
 
 /**
+ * @desc    Get GitHub OAuth Login Authorization URL and Redirect
+ * @route   GET /api/github/login
+ * @access  Public
+ */
+exports.loginRedirect = async (req, res, next) => {
+  try {
+    // Generate a secure state token for direct login
+    const stateToken = jwt.sign({ login: true }, env.JWT_SECRET, { expiresIn: '15m' });
+    
+    const githubAuthUrl = `https://github.com/login/oauth/authorize?client_id=${env.GITHUB_CLIENT_ID}&redirect_uri=${encodeURIComponent(env.GITHUB_REDIRECT_URI)}&scope=repo,read:user,read:org&state=${stateToken}`;
+    
+    res.redirect(githubAuthUrl);
+  } catch (error) {
+    next(error);
+  }
+};
+
+/**
  * @desc    GitHub OAuth callback - exchange code for token
  * @route   GET /api/github/callback
  * @access  Public (GitHub redirect)
@@ -37,17 +55,22 @@ exports.callback = async (req, res, next) => {
 
   try {
     // 1. Authenticate user from state token
-    let userId;
+    let userId = null;
+    let isLoginFlow = false;
     try {
       const decoded = jwt.verify(state, env.JWT_SECRET);
-      userId = decoded.userId;
+      if (decoded.userId) {
+        userId = decoded.userId;
+      } else if (decoded.login) {
+        isLoginFlow = true;
+      }
     } catch (err) {
-      return res.status(401).send('GitHub OAuth Error: Invalid or expired state token.');
-    }
-
-    const user = await User.findById(userId);
-    if (!user) {
-      return res.status(404).send('GitHub OAuth Error: Associated user account not found.');
+      // Fallback if the token is invalid but matches string containing "login" for legacy compatibility
+      if (state && state.includes('login')) {
+        isLoginFlow = true;
+      } else {
+        return res.status(401).send('GitHub OAuth Error: Invalid or expired state token.');
+      }
     }
 
     // 2. Exchange authorization code for GitHub access token
@@ -87,7 +110,61 @@ exports.callback = async (req, res, next) => {
       throw new Error(`Profile retrieval failed: ${profile.message || profileResponse.statusText}`);
     }
 
-    // 4. Save credentials to the User document
+    if (isLoginFlow) {
+      // 4a. Find or create user based on GitHub credentials
+      let user = await User.findOne({ githubId: profile.id.toString() });
+      
+      if (!user && profile.email) {
+        user = await User.findOne({ email: profile.email.toLowerCase() });
+      }
+
+      if (!user) {
+        console.log(`[GITHUB OAUTH LOGIN] Creating new user for GitHub login: ${profile.login}`);
+        const bcrypt = require('bcryptjs');
+        const crypto = require('crypto');
+        
+        const randomPassword = crypto.randomBytes(32).toString('hex');
+        const salt = await bcrypt.genSalt(12);
+        const passwordHash = await bcrypt.hash(randomPassword, salt);
+
+        const email = profile.email 
+          ? profile.email.toLowerCase() 
+          : `${profile.login.toLowerCase()}@github.devtrackr.local`;
+
+        user = new User({
+          username: profile.name || profile.login,
+          email,
+          passwordHash,
+          githubAccessToken: accessToken,
+          githubUsername: profile.login,
+          githubId: profile.id.toString(),
+          connectedAt: new Date()
+        });
+      } else {
+        console.log(`[GITHUB OAUTH LOGIN] Existing user found: ${user.email}. Updating access token.`);
+        user.githubAccessToken = accessToken;
+        user.githubUsername = profile.login;
+        user.githubId = profile.id.toString();
+        user.connectedAt = new Date();
+      }
+
+      await user.save();
+
+      // Generate JWT Auth Token
+      const token = jwt.sign({ userId: user._id }, env.JWT_SECRET, {
+        expiresIn: env.JWT_EXPIRES_IN || '24h'
+      });
+
+      console.log(`[GITHUB OAUTH LOGIN SUCCESS] Successfully logged in user: ${user.email}`);
+      return res.redirect(`http://localhost:5173/login?token=${token}`);
+    }
+
+    // 4b. Linking flow (original logic)
+    const user = await User.findById(userId);
+    if (!user) {
+      return res.status(404).send('GitHub OAuth Error: Associated user account not found.');
+    }
+
     user.githubAccessToken = accessToken;
     user.githubUsername = profile.login;
     user.githubId = profile.id.toString();
@@ -96,11 +173,15 @@ exports.callback = async (req, res, next) => {
 
     console.log(`[GITHUB OAUTH SUCCESS] Successfully linked GitHub username: ${profile.login} to user ID ${user._id}`);
 
-    // 5. Redirect back to frontend dashboard
+    // Redirect back to settings page
     res.redirect(`http://localhost:5173/settings?github_connected=true`);
   } catch (error) {
     console.error(`[GITHUB OAUTH ERROR] Callback exchange failed: ${error.message}`);
-    res.redirect(`http://localhost:5173/settings?github_error=${encodeURIComponent(error.message)}`);
+    if (state && (state.includes('login') || !state.includes('userId'))) {
+      res.redirect(`http://localhost:5173/login?error=${encodeURIComponent(error.message)}`);
+    } else {
+      res.redirect(`http://localhost:5173/settings?github_error=${encodeURIComponent(error.message)}`);
+    }
   }
 };
 

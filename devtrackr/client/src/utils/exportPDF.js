@@ -157,7 +157,7 @@ export const exportDashboardToPDF = async (elementId, metadata) => {
       pdf.setFont('helvetica', 'italic');
       pdf.setFontSize(9);
       pdf.setTextColor(140, 144, 159);
-      pdf.text('DevTrackr AI Productivity Platform | google-gemini-2.0-flash insight engine', 15, pdfHeight - 10);
+      pdf.text('DevTrackr AI Productivity Platform | google-gemini-2.5-flash insight engine', 15, pdfHeight - 10);
     }
 
     // Save final PDF

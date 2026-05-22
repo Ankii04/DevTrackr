@@ -30,6 +30,10 @@ const UserSchema = new mongoose.Schema({
     type: String,
     default: null
   },
+  geminiApiKey: {
+    type: String,
+    default: null
+  },
   connectedAt: {
     type: Date,
     default: null
@@ -45,6 +49,8 @@ UserSchema.methods.toJSON = function () {
   const obj = this.toObject();
   delete obj.passwordHash;
   delete obj.githubAccessToken; // Keep GitHub token internal
+  obj.hasCustomGeminiKey = !!obj.geminiApiKey;
+  delete obj.geminiApiKey; // Keep API key internal to the database
   return obj;
 };
 

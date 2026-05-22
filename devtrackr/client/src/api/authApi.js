@@ -19,3 +19,8 @@ export const disconnectGithub = async () => {
   const response = await axiosInstance.post('/auth/disconnect-github');
   return response.data;
 };
+
+export const updateSettings = async (settings) => {
+  const response = await axiosInstance.put('/auth/settings', settings);
+  return response.data;
+};

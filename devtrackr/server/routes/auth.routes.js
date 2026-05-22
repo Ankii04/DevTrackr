@@ -29,5 +29,6 @@ router.post(
 // Get current user profile
 router.get('/me', authMiddleware, authController.me);
 router.post('/disconnect-github', authMiddleware, authController.disconnectGithub);
+router.put('/settings', authMiddleware, authController.updateSettings);
 
 module.exports = router;

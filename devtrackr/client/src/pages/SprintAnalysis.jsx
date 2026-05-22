@@ -100,6 +100,27 @@ const SprintAnalysis = () => {
         </Button>
       </div>
 
+      {/* Mock Fallback Warning Banner */}
+      {latestSprintReport?.isMock && (
+        <div className="bg-amber-500/10 border border-amber-500/25 p-4 rounded-xl flex flex-col sm:flex-row justify-between items-start sm:items-center gap-4 animate-in fade-in duration-300 font-outfit mt-4">
+          <div className="flex gap-3 items-start">
+            <span className="material-symbols-outlined text-amber-500 text-[24px] shrink-0 mt-0.5">warning</span>
+            <div className="space-y-1">
+              <h5 className="font-bold text-[14px] text-amber-500">Offline Mock Simulation Mode</h5>
+              <p className="text-[12px] text-on-surface-variant leading-relaxed">
+                {latestSprintReport.mockReason || 'The shared platform API key is missing or has run out of quota.'} Using simulated developer telemetry.
+              </p>
+            </div>
+          </div>
+          <a
+            href="/settings"
+            className="shrink-0 bg-amber-500/20 text-amber-400 hover:bg-amber-500/30 text-[11px] font-bold px-4.5 py-2.5 rounded-lg border border-amber-500/30 hover:border-amber-500/50 transition-all text-center cursor-pointer font-outfit"
+          >
+            Configure API Key
+          </a>
+        </div>
+      )}
+
       {/* Grid wrapper */}
       <div id="sprint-grid" className="space-y-gutter p-2 rounded-xl">
         
@@ -196,7 +217,7 @@ const SprintAnalysis = () => {
           {/* AI Sprint Health report */}
           <div>
             {latestSprintReport ? (
-              <SprintSummaryCard report={latestSprintReport} />
+              <SprintSummaryCard repository={selectedRepo} />
             ) : (
               <div className="glass-card p-8 border border-white/5 text-center space-y-4 h-full flex flex-col justify-center items-center select-none py-12">
                 <span className="material-symbols-outlined text-[44px] text-primary animate-pulse">analytics</span>

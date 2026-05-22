@@ -98,7 +98,7 @@ const AIInsights = () => {
             Gemini AI Intelligence Engine
           </h1>
           <p className="font-outfit text-body-md text-on-surface-variant">
-            Leverage Google Gemini 2.0 Flash to evaluate developers' commits, stale PR pipelines, and sprint health for <span className="font-mono text-primary font-medium">@{selectedRepo.fullName}</span>
+            Leverage Google Gemini 2.5 Flash to evaluate developers' commits, stale PR pipelines, and sprint health for <span className="font-mono text-primary font-medium">@{selectedRepo.fullName}</span>
           </p>
         </div>
       </div>
@@ -248,6 +248,27 @@ const AIInsights = () => {
                   </p>
                 </div>
               </div>
+
+              {/* Mock Fallback Warning Banner */}
+              {activeReport.isMock && (
+                <div className="bg-amber-500/10 border border-amber-500/25 p-4 rounded-xl flex flex-col sm:flex-row justify-between items-start sm:items-center gap-4 animate-in fade-in duration-300 font-outfit">
+                  <div className="flex gap-3 items-start">
+                    <span className="material-symbols-outlined text-amber-500 text-[24px] shrink-0 mt-0.5">warning</span>
+                    <div className="space-y-1">
+                      <h5 className="font-bold text-[14px] text-amber-500">Offline Mock Simulation Mode</h5>
+                      <p className="text-[12px] text-on-surface-variant leading-relaxed">
+                        {activeReport.mockReason || 'The shared platform API key is missing or has run out of quota.'} Using simulated developer telemetry.
+                      </p>
+                    </div>
+                  </div>
+                  <a
+                    href="/settings"
+                    className="shrink-0 bg-amber-500/20 text-amber-400 hover:bg-amber-500/30 text-[11px] font-bold px-4.5 py-2.5 rounded-lg border border-amber-500/30 hover:border-amber-500/50 transition-all text-center cursor-pointer font-outfit"
+                  >
+                    Configure API Key
+                  </a>
+                </div>
+              )}
 
               {/* Executive Summary */}
               <div className="space-y-2">

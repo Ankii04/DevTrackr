@@ -5,7 +5,7 @@ import * as githubApi from '../api/githubApi';
 import Button from '../components/ui/Button';
 
 const Login = () => {
-  const { login, isAuthenticated } = useAuth();
+  const { login, isAuthenticated, loginWithToken } = useAuth();
   const navigate = useNavigate();
   const [searchParams] = useSearchParams();
   
@@ -22,12 +22,33 @@ const Login = () => {
     }
   }, [isAuthenticated, navigate]);
 
-  // Show session expiration warnings
+  // Show session expiration warnings & GitHub login redirect parameters
   useEffect(() => {
     if (searchParams.get('expired') === 'true') {
       setError('Your security session has expired. Please sign in again.');
     }
-  }, [searchParams]);
+    
+    const ghToken = searchParams.get('token');
+    const ghError = searchParams.get('error');
+    
+    if (ghToken) {
+      const authViaGithub = async () => {
+        setLoading(true);
+        setError('');
+        try {
+          await loginWithToken(ghToken);
+          navigate('/dashboard');
+        } catch (err) {
+          setError(err || 'Failed to authenticate via GitHub');
+        } finally {
+          setLoading(false);
+        }
+      };
+      authViaGithub();
+    } else if (ghError) {
+      setError(ghError);
+    }
+  }, [searchParams, loginWithToken, navigate]);
 
   const handleSubmit = async (e) => {
     e.preventDefault();
@@ -46,15 +67,9 @@ const Login = () => {
     }
   };
 
-  const handleGitHubConnect = async () => {
-    try {
-      // Connect to GitHub. Since this is login, OAuth callback handles user binding, 
-      // but let's fetch connect URL. Note: GitHub connection expects a logged-in user state.
-      // So we suggest users sign up/in using email first, then connect their GitHub inside settings!
-      setError('Please log in with your email first, then connect your GitHub account in Settings.');
-    } catch (err) {
-      setError('Could not access GitHub authorization servers.');
-    }
+  const handleGitHubConnect = () => {
+    const apiBase = import.meta.env.VITE_API_BASE_URL || 'http://localhost:5000/api';
+    window.location.href = `${apiBase}/github/login`;
   };
 
   return (

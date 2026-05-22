@@ -63,6 +63,25 @@ export const AuthProvider = ({ children }) => {
     }
   };
 
+  const loginWithToken = async (newToken) => {
+    setLoading(true);
+    try {
+      localStorage.setItem('token', newToken);
+      setToken(newToken);
+      const data = await authApi.getMe();
+      localStorage.setItem('user', JSON.stringify(data.user));
+      setUser(data.user);
+      setIsAuthenticated(true);
+      return data;
+    } catch (error) {
+      localStorage.removeItem('token');
+      setToken(null);
+      throw error.response?.data?.error || error.message || 'Token verification failed';
+    } finally {
+      setLoading(false);
+    }
+  };
+
   const logout = () => {
     localStorage.removeItem('token');
     localStorage.removeItem('user');
@@ -82,6 +101,7 @@ export const AuthProvider = ({ children }) => {
     loading,
     login,
     signup,
+    loginWithToken,
     logout,
     setUser
   };

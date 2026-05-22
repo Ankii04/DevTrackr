@@ -5,7 +5,7 @@ import useGitHub from '../hooks/useGitHub';
 import Layout from '../components/layout/Layout';
 import Button from '../components/ui/Button';
 import Badge from '../components/ui/Badge';
-import { disconnectGithub, getMe } from '../api/authApi';
+import { disconnectGithub, getMe, updateSettings } from '../api/authApi';
 import { formatDate } from '../utils/dateHelpers';
 
 const Settings = () => {
@@ -15,6 +15,9 @@ const Settings = () => {
   const [disconnecting, setDisconnecting] = useState(false);
   const [error, setError] = useState('');
   const [success, setSuccess] = useState('');
+  const [geminiApiKey, setGeminiApiKey] = useState('');
+  const [showKey, setShowKey] = useState(false);
+  const [savingKey, setSavingKey] = useState(false);
 
   // Handle URL redirect query parameters from GitHub callback
   useEffect(() => {
@@ -60,6 +63,43 @@ const Settings = () => {
       setError(err.response?.data?.error || 'Failed to unlink account.');
     } finally {
       setDisconnecting(false);
+    }
+  };
+
+  const handleSaveGeminiKey = async (e) => {
+    e.preventDefault();
+    if (!geminiApiKey.trim()) return;
+    setSavingKey(true);
+    setError('');
+    setSuccess('');
+    try {
+      const data = await updateSettings({ geminiApiKey: geminiApiKey.trim() });
+      setUser(data.user);
+      setSuccess('Google Gemini API Key saved successfully!');
+      setGeminiApiKey('');
+    } catch (err) {
+      setError(err.response?.data?.error || 'Failed to save Gemini API key.');
+    } finally {
+      setSavingKey(false);
+    }
+  };
+
+  const handleRemoveGeminiKey = async () => {
+    if (!window.confirm('Are you sure you want to remove your custom Gemini API key? The platform will fall back to the system default.')) {
+      return;
+    }
+    setSavingKey(true);
+    setError('');
+    setSuccess('');
+    try {
+      const data = await updateSettings({ geminiApiKey: null });
+      setUser(data.user);
+      setSuccess('Custom Gemini API Key removed.');
+      setGeminiApiKey('');
+    } catch (err) {
+      setError(err.response?.data?.error || 'Failed to remove Gemini API key.');
+    } finally {
+      setSavingKey(false);
     }
   };
 
@@ -199,6 +239,80 @@ const Settings = () => {
               </div>
             </div>
           )}
+        </div>
+
+        {/* Gemini AI Integration Panel */}
+        <div className="glass-card p-6 border border-white/5 space-y-6">
+          <div className="flex justify-between items-center border-b border-white/5 pb-3">
+            <h3 className="font-label-caps text-label-caps text-on-surface-variant uppercase tracking-widest font-bold">
+              Google Gemini API Overrides
+            </h3>
+            <Badge variant={user.hasCustomGeminiKey ? 'success' : 'neutral'}>
+              {user.hasCustomGeminiKey ? 'Custom Key Active' : 'Using Global Default'}
+            </Badge>
+          </div>
+
+          <div className="space-y-4">
+            <p className="text-body-md text-on-surface-variant leading-relaxed">
+              If the platform's default shared API quota is exceeded (429 errors), you can connect your own free personal Gemini API Key here. Your personal key will override the system-wide key and run live evaluations securely.
+            </p>
+
+            <form onSubmit={handleSaveGeminiKey} className="space-y-4">
+              <div className="space-y-2">
+                <label className="text-[11px] font-mono uppercase tracking-widest text-on-surface-variant flex justify-between">
+                  <span>Personal Gemini API Key</span>
+                  {user.hasCustomGeminiKey && (
+                    <span className="text-secondary normal-case font-outfit">✔ Key saved in database</span>
+                  )}
+                </label>
+                <div className="flex gap-2">
+                  <div className="relative flex-1">
+                    <input
+                      type={showKey ? 'text' : 'password'}
+                      value={geminiApiKey}
+                      onChange={(e) => setGeminiApiKey(e.target.value)}
+                      placeholder={user.hasCustomGeminiKey ? '••••••••••••••••••••••••••••••••••••' : 'AIzaSy... (Paste your Gemini API key here)'}
+                      className="w-full bg-surface-container-low border border-white/5 rounded-lg px-4 py-2.5 text-on-surface placeholder:text-on-surface-variant/40 font-mono text-[13px] focus:outline-none focus:border-primary/45 transition-colors pr-10"
+                    />
+                    <button
+                      type="button"
+                      onClick={() => setShowKey(!showKey)}
+                      className="absolute right-3 top-1/2 -translate-y-1/2 text-on-surface-variant/60 hover:text-on-surface transition-colors cursor-pointer flex items-center justify-center bg-transparent border-0"
+                    >
+                      <span className="material-symbols-outlined text-[20px]">
+                        {showKey ? 'visibility_off' : 'visibility'}
+                      </span>
+                    </button>
+                  </div>
+                  
+                  <Button
+                    type="submit"
+                    loading={savingKey}
+                    disabled={savingKey || !geminiApiKey.trim()}
+                    className="bg-primary text-on-primary text-[12px] font-bold px-5 shrink-0"
+                  >
+                    Save Key
+                  </Button>
+                </div>
+                <p className="text-[11px] text-on-surface-variant/75">
+                  Get a free API key instantly in the <a href="https://ai.google.dev/gemini-api" target="_blank" rel="noopener noreferrer" className="text-primary hover:underline" style={{ pointerEvents: 'auto' }}>Google AI Studio</a>.
+                </p>
+              </div>
+            </form>
+
+            {user.hasCustomGeminiKey && (
+              <div className="pt-2">
+                <Button
+                  onClick={handleRemoveGeminiKey}
+                  loading={savingKey}
+                  disabled={savingKey}
+                  className="bg-error-container/20 border border-error/30 text-error hover:bg-error-container/30 text-[11px] font-bold px-4 py-2"
+                >
+                  Remove Custom Key
+                </Button>
+              </div>
+            )}
+          </div>
         </div>
 
       </div>

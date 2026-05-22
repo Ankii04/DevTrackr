@@ -4,23 +4,10 @@ const Repository = require('../models/Repository');
 const CommitSnapshot = require('../models/CommitSnapshot');
 const PullRequest = require('../models/PullRequest');
 const AIReport = require('../models/AIReport');
+const User = require('../models/User');
 const prompts = require('../utils/aiPrompts');
 
-// Safely initialize GenAI client
-let genAI = null;
-let model = null;
-
-if (env.GEMINI_API_KEY) {
-  try {
-    genAI = new GoogleGenerativeAI(env.GEMINI_API_KEY);
-    model = genAI.getGenerativeModel({ model: 'gemini-2.0-flash' });
-    console.log('[AI SERVICE] Google Gemini API Client initialized successfully');
-  } catch (error) {
-    console.error(`[AI SERVICE ERROR] Failed to initialize Google GenAI: ${error.message}`);
-  }
-} else {
-  console.warn('[AI SERVICE WARNING] GEMINI_API_KEY not configured. Running in Fallback/Mock mode.');
-}
+console.log('[AI SERVICE] Google Gemini API Client configured with dynamic User / Env key resolution');
 
 // Clean raw Gemini text to make sure it is valid JSON
 function cleanJSONResponse(rawText) {
@@ -101,8 +88,28 @@ function getMockReport(type, repoName) {
 /**
  * Standard content generation dispatcher calling Google Generative AI
  */
+/**
+ * Standard content generation dispatcher calling Google Generative AI
+ */
 async function callGemini(prompt, type, repositoryId, userId, repoName) {
-  if (!model) {
+  let userGeminiApiKey = null;
+
+  // Retrieve user custom API Key if available
+  if (userId) {
+    try {
+      const user = await User.findById(userId);
+      if (user && user.geminiApiKey) {
+        userGeminiApiKey = user.geminiApiKey;
+      }
+    } catch (dbErr) {
+      console.error(`[AI SERVICE ERROR] Failed to query user key: ${dbErr.message}`);
+    }
+  }
+
+  const activeApiKey = userGeminiApiKey || env.GEMINI_API_KEY;
+
+  if (!activeApiKey) {
+    console.log('[AI SERVICE] No Gemini API Key available. Generating simulated fallback report.');
     const mockContent = getMockReport(type, repoName);
     return await AIReport.create({
       repositoryId,
@@ -110,12 +117,36 @@ async function callGemini(prompt, type, repositoryId, userId, repoName) {
       reportType: type,
       content: mockContent,
       rawPrompt: prompt,
-      tokensUsed: 0
+      tokensUsed: 0,
+      isMock: true,
+      mockReason: 'No Gemini API Key is configured. Paste a personal API key in Settings.'
+    });
+  }
+
+  let localModel = null;
+  try {
+    const localGenAI = new GoogleGenerativeAI(activeApiKey);
+    localModel = localGenAI.getGenerativeModel({ model: 'gemini-2.5-flash' });
+  } catch (initErr) {
+    console.error(`[AI SERVICE ERROR] Failed to initialize GenAI client: ${initErr.message}`);
+  }
+
+  if (!localModel) {
+    const mockContent = getMockReport(type, repoName);
+    return await AIReport.create({
+      repositoryId,
+      userId,
+      reportType: type,
+      content: mockContent,
+      rawPrompt: prompt,
+      tokensUsed: 0,
+      isMock: true,
+      mockReason: 'GenAI client initialization failed. Verify that your API Key is valid.'
     });
   }
 
   try {
-    const result = await model.generateContent(prompt);
+    const result = await localModel.generateContent(prompt);
     const responseText = result.response.text();
     const cleanJSONString = cleanJSONResponse(responseText);
     
@@ -144,10 +175,20 @@ async function callGemini(prompt, type, repositoryId, userId, repoName) {
       reportType: type,
       content: finalContent,
       rawPrompt: prompt,
-      tokensUsed: result.response.usageMetadata?.totalTokenCount || 0
+      tokensUsed: result.response.usageMetadata?.totalTokenCount || 0,
+      isMock: false
     });
   } catch (error) {
     console.error(`[AI GEMINI CALL EXCEPTION] AI generation failed: ${error.message}`);
+    
+    // Check if rate limits or quota exceeded
+    let reason = 'AI generation failed due to a server or network connection error.';
+    if (error.message.includes('429') || error.message.includes('quota') || error.message.includes('Quota') || error.message.includes('limit')) {
+      reason = 'Gemini API free tier rate limit or daily quota exceeded.';
+    } else if (error.message.includes('API key') || error.message.includes('key not valid') || error.message.includes('API_KEY_INVALID') || error.message.includes('400')) {
+      reason = 'The provided Gemini API Key is invalid, inactive, or expired.';
+    }
+
     // Fallback to mock report so frontend doesn't crash
     const mockContent = getMockReport(type, repoName);
     return await AIReport.create({
@@ -156,7 +197,9 @@ async function callGemini(prompt, type, repositoryId, userId, repoName) {
       reportType: type,
       content: mockContent,
       rawPrompt: prompt,
-      tokensUsed: 0
+      tokensUsed: 0,
+      isMock: true,
+      mockReason: reason
     });
   }
 }

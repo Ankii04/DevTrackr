@@ -130,3 +130,28 @@ exports.disconnectGithub = async (req, res, next) => {
     next(error);
   }
 };
+
+/**
+ * @desc    Update user settings (e.g. Gemini API Key)
+ * @route   PUT /api/auth/settings
+ * @access  Private (JWT protected)
+ */
+exports.updateSettings = async (req, res, next) => {
+  const { geminiApiKey } = req.body;
+
+  try {
+    const user = await User.findById(req.user._id);
+    if (!user) {
+      return res.status(404).json({ error: 'User not found' });
+    }
+
+    if (geminiApiKey !== undefined) {
+      user.geminiApiKey = geminiApiKey ? geminiApiKey.trim() : null;
+    }
+
+    await user.save();
+    res.json({ message: 'Settings successfully updated', user });
+  } catch (error) {
+    next(error);
+  }
+};

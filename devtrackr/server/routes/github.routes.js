@@ -7,6 +7,9 @@ const router = express.Router();
 // Redirect route returning OAuth connection url
 router.get('/connect', authMiddleware, githubController.connect);
 
+// Public connect route for direct login from login page
+router.get('/login', githubController.loginRedirect);
+
 // Public callback path mapping redirected user details back to server
 router.get('/callback', githubController.callback);
 
