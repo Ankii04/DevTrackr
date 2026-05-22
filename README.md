@@ -345,3 +345,43 @@ cd devtrackr/client
 npm run build
 ```
 This outputs a optimized distribution bundle in `client/dist/`, ready to be served by any static host or web proxy.
+
+---
+
+## 6. Production Deployment Guide
+
+DevTrackr is fully decoupled and optimized for modern production hosting: **Vercel** (for the frontend client) and **Render** (for the Express backend API).
+
+### A. Backend Deployment (Render Web Service)
+1. Sign in to [Render](https://render.com) and click **New +** > **Web Service**.
+2. Connect your GitHub repository.
+3. Configure the following service settings:
+   - **Name**: `devtrackr-backend`
+   - **Root Directory**: `devtrackr/server`
+   - **Runtime**: `Node`
+   - **Build Command**: `npm install`
+   - **Start Command**: `npm start`
+4. Add the following **Environment Variables** in Render:
+   - `NODE_ENV` = `production`
+   - `CLIENT_URL` = `https://your-vercel-domain.vercel.app` *(The URL of your deployed Vercel frontend)*
+   - `MONGO_URI` = `mongodb+srv://<username>:<password>@<cluster>.mongodb.net/devtrackr` *(Your MongoDB Atlas Cluster URI)*
+   - `JWT_SECRET` = `your_secure_production_jwt_secret`
+   - `GITHUB_CLIENT_ID` = `your_github_oauth_client_id`
+   - `GITHUB_CLIENT_SECRET` = `your_github_oauth_client_secret`
+   - `GITHUB_REDIRECT_URI` = `https://your-render-domain.onrender.com/api/github/callback` *(OAuth callback redirecting to Render)*
+   - `GEMINI_API_KEY` = `your_gemini_api_key_override`
+
+---
+
+### B. Frontend Deployment (Vercel Client)
+1. Sign in to [Vercel](https://vercel.com) and click **Add New** > **Project**.
+2. Import your GitHub repository.
+3. Configure the following project settings:
+   - **Framework Preset**: `Vite`
+   - **Root Directory**: Click *Edit* and select `devtrackr/client`
+   - **Build Command**: `npm run build`
+   - **Output Directory**: `dist`
+4. Add the following **Environment Variable** in Vercel:
+   - `VITE_API_BASE_URL` = `https://your-render-domain.onrender.com/api` *(The URL of your deployed Render backend)*
+5. Click **Deploy**. Vercel will process client-side routes smoothly using the configured [vercel.json](file:///c:/Users/HP/OneDrive/Desktop/new_project/devtrackr/client/vercel.json) file.
+

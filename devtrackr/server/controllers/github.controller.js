@@ -156,7 +156,7 @@ exports.callback = async (req, res, next) => {
       });
 
       console.log(`[GITHUB OAUTH LOGIN SUCCESS] Successfully logged in user: ${user.email}`);
-      return res.redirect(`http://localhost:5173/login?token=${token}`);
+      return res.redirect(`${env.CLIENT_URL}/login?token=${token}`);
     }
 
     // 4b. Linking flow (original logic)
@@ -174,13 +174,13 @@ exports.callback = async (req, res, next) => {
     console.log(`[GITHUB OAUTH SUCCESS] Successfully linked GitHub username: ${profile.login} to user ID ${user._id}`);
 
     // Redirect back to settings page
-    res.redirect(`http://localhost:5173/settings?github_connected=true`);
+    res.redirect(`${env.CLIENT_URL}/settings?github_connected=true`);
   } catch (error) {
     console.error(`[GITHUB OAUTH ERROR] Callback exchange failed: ${error.message}`);
     if (state && (state.includes('login') || !state.includes('userId'))) {
-      res.redirect(`http://localhost:5173/login?error=${encodeURIComponent(error.message)}`);
+      res.redirect(`${env.CLIENT_URL}/login?error=${encodeURIComponent(error.message)}`);
     } else {
-      res.redirect(`http://localhost:5173/settings?github_error=${encodeURIComponent(error.message)}`);
+      res.redirect(`${env.CLIENT_URL}/settings?github_error=${encodeURIComponent(error.message)}`);
     }
   }
 };
