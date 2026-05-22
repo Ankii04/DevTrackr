@@ -13,7 +13,17 @@ const syncService = require('../services/sync.service');
 exports.connect = async (req, res, next) => {
   try {
     // Generate a secure state token using the user's JWT to authenticate them in the callback
-    const stateToken = jwt.sign({ userId: req.user._id }, env.JWT_SECRET, { expiresIn: '15m' });
+    const clientUrl = req.headers.referer || req.headers.origin || env.CLIENT_URL;
+    let cleanClientUrl = env.CLIENT_URL;
+    try {
+      cleanClientUrl = new URL(clientUrl).origin;
+    } catch (e) {}
+    
+    const stateToken = jwt.sign(
+      { userId: req.user._id, clientUrl: cleanClientUrl },
+      env.JWT_SECRET,
+      { expiresIn: '15m' }
+    );
     
     const githubAuthUrl = `https://github.com/login/oauth/authorize?client_id=${env.GITHUB_CLIENT_ID}&redirect_uri=${encodeURIComponent(env.GITHUB_REDIRECT_URI)}&scope=repo,read:user,read:org&state=${stateToken}`;
     
@@ -31,7 +41,17 @@ exports.connect = async (req, res, next) => {
 exports.loginRedirect = async (req, res, next) => {
   try {
     // Generate a secure state token for direct login
-    const stateToken = jwt.sign({ login: true }, env.JWT_SECRET, { expiresIn: '15m' });
+    const clientUrl = req.query.client_url || req.headers.referer || env.CLIENT_URL;
+    let cleanClientUrl = env.CLIENT_URL;
+    try {
+      cleanClientUrl = new URL(clientUrl).origin;
+    } catch (e) {}
+    
+    const stateToken = jwt.sign(
+      { login: true, clientUrl: cleanClientUrl },
+      env.JWT_SECRET,
+      { expiresIn: '15m' }
+    );
     
     const githubAuthUrl = `https://github.com/login/oauth/authorize?client_id=${env.GITHUB_CLIENT_ID}&redirect_uri=${encodeURIComponent(env.GITHUB_REDIRECT_URI)}&scope=repo,read:user,read:org&state=${stateToken}`;
     
@@ -53,26 +73,31 @@ exports.callback = async (req, res, next) => {
     return res.status(400).send('GitHub OAuth Error: No code parameter provided.');
   }
 
-  try {
-    // 1. Authenticate user from state token
-    let userId = null;
-    let isLoginFlow = false;
-    try {
-      const decoded = jwt.verify(state, env.JWT_SECRET);
-      if (decoded.userId) {
-        userId = decoded.userId;
-      } else if (decoded.login) {
-        isLoginFlow = true;
-      }
-    } catch (err) {
-      // Fallback if the token is invalid but matches string containing "login" for legacy compatibility
-      if (state && state.includes('login')) {
-        isLoginFlow = true;
-      } else {
-        return res.status(401).send('GitHub OAuth Error: Invalid or expired state token.');
-      }
-    }
+  // Determine client URL dynamically from the state JWT token first to prevent localhost redirect issues
+  let redirectUrl = env.CLIENT_URL;
+  let userId = null;
+  let isLoginFlow = false;
 
+  try {
+    const decoded = jwt.verify(state, env.JWT_SECRET);
+    if (decoded.clientUrl) {
+      redirectUrl = decoded.clientUrl.replace(/\/$/, '');
+    }
+    if (decoded.userId) {
+      userId = decoded.userId;
+    } else if (decoded.login) {
+      isLoginFlow = true;
+    }
+  } catch (err) {
+    // Fallback if the token is invalid but matches string containing "login" for legacy compatibility
+    if (state && state.includes('login')) {
+      isLoginFlow = true;
+    } else {
+      return res.status(401).send('GitHub OAuth Error: Invalid or expired state token.');
+    }
+  }
+
+  try {
     // 2. Exchange authorization code for GitHub access token
     console.log('[GITHUB OAUTH] Exchanging authorization code...');
     const response = await fetch('https://github.com/login/oauth/access_token', {
@@ -156,7 +181,7 @@ exports.callback = async (req, res, next) => {
       });
 
       console.log(`[GITHUB OAUTH LOGIN SUCCESS] Successfully logged in user: ${user.email}`);
-      return res.redirect(`${env.CLIENT_URL}/login?token=${token}`);
+      return res.redirect(`${redirectUrl}/login?token=${token}`);
     }
 
     // 4b. Linking flow (original logic)
@@ -174,13 +199,13 @@ exports.callback = async (req, res, next) => {
     console.log(`[GITHUB OAUTH SUCCESS] Successfully linked GitHub username: ${profile.login} to user ID ${user._id}`);
 
     // Redirect back to settings page
-    res.redirect(`${env.CLIENT_URL}/settings?github_connected=true`);
+    res.redirect(`${redirectUrl}/settings?github_connected=true`);
   } catch (error) {
     console.error(`[GITHUB OAUTH ERROR] Callback exchange failed: ${error.message}`);
     if (state && (state.includes('login') || !state.includes('userId'))) {
-      res.redirect(`${env.CLIENT_URL}/login?error=${encodeURIComponent(error.message)}`);
+      res.redirect(`${redirectUrl}/login?error=${encodeURIComponent(error.message)}`);
     } else {
-      res.redirect(`${env.CLIENT_URL}/settings?github_error=${encodeURIComponent(error.message)}`);
+      res.redirect(`${redirectUrl}/settings?github_error=${encodeURIComponent(error.message)}`);
     }
   }
 };

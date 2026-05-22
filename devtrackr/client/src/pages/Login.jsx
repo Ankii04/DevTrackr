@@ -72,7 +72,7 @@ const Login = () => {
     if (apiBase && !apiBase.endsWith('/api') && !apiBase.endsWith('/api/')) {
       apiBase = apiBase.replace(/\/$/, '') + '/api';
     }
-    window.location.href = `${apiBase}/github/login`;
+    window.location.href = `${apiBase}/github/login?client_url=${encodeURIComponent(window.location.origin)}`;
   };
 
   return (
