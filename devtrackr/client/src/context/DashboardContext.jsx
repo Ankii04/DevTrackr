@@ -164,22 +164,27 @@ export const DashboardProvider = ({ children }) => {
     }, 3000); // Poll every 3 seconds
   };
 
-  const syncActiveRepo = async () => {
-    if (!selectedRepo) return;
+  const syncActiveRepo = async (repoId) => {
+    const targetId = repoId || selectedRepo?._id;
+    if (!targetId) return;
     setSyncing(true);
     try {
-      const data = await githubApi.syncRepo(selectedRepo._id);
+      const data = await githubApi.syncRepo(targetId);
       
       // Update local repository status immediately
-      const updatedRepo = {
-        ...selectedRepo,
-        syncStatus: 'syncing'
-      };
-      setSelectedRepo(updatedRepo);
-      localStorage.setItem('selectedRepo', JSON.stringify(updatedRepo));
+      setRepos(prevRepos => prevRepos.map(r => r._id === targetId ? { ...r, syncStatus: 'syncing' } : r));
+      
+      if (selectedRepo && selectedRepo._id === targetId) {
+        const updatedRepo = {
+          ...selectedRepo,
+          syncStatus: 'syncing'
+        };
+        setSelectedRepo(updatedRepo);
+        localStorage.setItem('selectedRepo', JSON.stringify(updatedRepo));
+      }
 
       // Trigger polling loop
-      startPollingSync(selectedRepo._id);
+      startPollingSync(targetId);
       return data;
     } catch (err) {
       setSyncing(false);
