@@ -1,0 +1,218 @@
+import React, { createContext, useState, useEffect, useContext, useRef } from 'react';
+import * as githubApi from '../api/githubApi';
+import * as analyticsApi from '../api/analyticsApi';
+import * as aiApi from '../api/aiApi';
+import { useAuth } from './AuthContext';
+
+const DashboardContext = createContext(null);
+
+export const DashboardProvider = ({ children }) => {
+  const { isAuthenticated } = useAuth();
+  const [repos, setRepos] = useState([]);
+  const [selectedRepo, setSelectedRepo] = useState(() => {
+    const saved = localStorage.getItem('selectedRepo');
+    return saved ? JSON.parse(saved) : null;
+  });
+  
+  const [analyticsData, setAnalyticsData] = useState({
+    commits: [],
+    contributors: { active: [], inactive: [] },
+    prs: null,
+    issues: null,
+    velocity: []
+  });
+
+  const [aiReports, setAIReports] = useState([]);
+  const [syncing, setSyncing] = useState(false);
+  const [analyticsLoading, setAnalyticsLoading] = useState(false);
+  const [aiLoading, setAiLoading] = useState(false);
+  const [error, setError] = useState(null);
+
+  const pollIntervalRef = useRef(null);
+
+  // Clear polling on unmount
+  useEffect(() => {
+    return () => {
+      if (pollIntervalRef.current) clearInterval(pollIntervalRef.current);
+    };
+  }, []);
+
+  // Fetch all repos if authenticated
+  useEffect(() => {
+    if (isAuthenticated) {
+      fetchRepositories();
+    } else {
+      setRepos([]);
+      setSelectedRepo(null);
+      localStorage.removeItem('selectedRepo');
+    }
+  }, [isAuthenticated]);
+
+  // Load analytics when repo selection changes
+  useEffect(() => {
+    if (selectedRepo && isAuthenticated) {
+      fetchAnalytics(selectedRepo._id);
+      fetchAIReports(selectedRepo._id);
+      
+      // If the selected repo is currently syncing in backend, restart polling loop
+      if (selectedRepo.syncStatus === 'syncing') {
+        startPollingSync(selectedRepo._id);
+      }
+    }
+  }, [selectedRepo, isAuthenticated]);
+
+  const fetchRepositories = async () => {
+    try {
+      const data = await githubApi.getRepos();
+      setRepos(data);
+      
+      // If we don't have a selected repo yet, auto select the first one
+      if (data.length > 0 && !selectedRepo) {
+        selectRepo(data[0]);
+      } else if (selectedRepo) {
+        // Refresh selectedRepo details (like syncStatus)
+        const updatedSelected = data.find(r => r._id === selectedRepo._id);
+        if (updatedSelected) {
+          setSelectedRepo(updatedSelected);
+          localStorage.setItem('selectedRepo', JSON.stringify(updatedSelected));
+        }
+      }
+    } catch (err) {
+      console.error('[DASHBOARD CONTEXT] Failed fetching repos:', err);
+      setError(err.response?.data?.error || 'Failed to fetch repositories');
+    }
+  };
+
+  const selectRepo = (repo) => {
+    setSelectedRepo(repo);
+    localStorage.setItem('selectedRepo', JSON.stringify(repo));
+    setError(null);
+    if (pollIntervalRef.current) {
+      clearInterval(pollIntervalRef.current);
+      setSyncing(false);
+    }
+  };
+
+  const fetchAnalytics = async (repoId) => {
+    setAnalyticsLoading(true);
+    try {
+      const [commits, contributors, prs, issues, velocity] = await Promise.all([
+        analyticsApi.getCommits(repoId),
+        analyticsApi.getContributors(repoId),
+        analyticsApi.getPRs(repoId),
+        analyticsApi.getIssues(repoId),
+        analyticsApi.getVelocity(repoId)
+      ]);
+
+      setAnalyticsData({
+        commits,
+        contributors,
+        prs,
+        issues,
+        velocity
+      });
+    } catch (err) {
+      console.error('[DASHBOARD CONTEXT] Analytics fetch failed:', err);
+      setError('Could not retrieve repository analytics. Ensure sync is run first.');
+    } finally {
+      setAnalyticsLoading(false);
+    }
+  };
+
+  const fetchAIReports = async (repoId) => {
+    setAiLoading(true);
+    try {
+      const data = await aiApi.getAIReports(repoId);
+      setAIReports(data);
+    } catch (err) {
+      console.error('[DASHBOARD CONTEXT] Failed fetching AI reports:', err);
+    } finally {
+      setAiLoading(false);
+    }
+  };
+
+  // Polls backend to check on background sync status
+  const startPollingSync = (repoId) => {
+    if (pollIntervalRef.current) clearInterval(pollIntervalRef.current);
+    setSyncing(true);
+
+    pollIntervalRef.current = setInterval(async () => {
+      try {
+        const reposList = await githubApi.getRepos();
+        setRepos(reposList);
+        
+        const currentRepo = reposList.find(r => r._id === repoId);
+        if (currentRepo) {
+          setSelectedRepo(currentRepo);
+          localStorage.setItem('selectedRepo', JSON.stringify(currentRepo));
+
+          if (currentRepo.syncStatus !== 'syncing') {
+            console.log(`[DASHBOARD CONTEXT] Background sync finished with status: ${currentRepo.syncStatus}`);
+            clearInterval(pollIntervalRef.current);
+            setSyncing(false);
+            
+            // Reload fresh synced stats
+            fetchAnalytics(repoId);
+            fetchAIReports(repoId);
+          }
+        }
+      } catch (err) {
+        console.error('[DASHBOARD CONTEXT] Sync polling error:', err);
+        clearInterval(pollIntervalRef.current);
+        setSyncing(false);
+      }
+    }, 3000); // Poll every 3 seconds
+  };
+
+  const syncActiveRepo = async () => {
+    if (!selectedRepo) return;
+    setSyncing(true);
+    try {
+      const data = await githubApi.syncRepo(selectedRepo._id);
+      
+      // Update local repository status immediately
+      const updatedRepo = {
+        ...selectedRepo,
+        syncStatus: 'syncing'
+      };
+      setSelectedRepo(updatedRepo);
+      localStorage.setItem('selectedRepo', JSON.stringify(updatedRepo));
+
+      // Trigger polling loop
+      startPollingSync(selectedRepo._id);
+      return data;
+    } catch (err) {
+      setSyncing(false);
+      const errMsg = err.response?.data?.error || 'Failed to trigger synchronization';
+      setError(errMsg);
+      throw errMsg;
+    }
+  };
+
+  const value = {
+    repos,
+    selectedRepo,
+    analyticsData,
+    aiReports,
+    syncing,
+    analyticsLoading,
+    aiLoading,
+    error,
+    setError,
+    fetchRepositories,
+    selectRepo,
+    syncActiveRepo,
+    fetchAnalytics,
+    fetchAIReports
+  };
+
+  return <DashboardContext.Provider value={value}>{children}</DashboardContext.Provider>;
+};
+
+export const useDashboard = () => {
+  const context = useContext(DashboardContext);
+  if (!context) {
+    throw new Error('useDashboard must be used within a DashboardProvider');
+  }
+  return context;
+};

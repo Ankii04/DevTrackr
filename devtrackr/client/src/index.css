@@ -1,0 +1,54 @@
+@import url('https://fonts.googleapis.com/css2?family=Outfit:wght@400;500;600;700&family=JetBrains+Mono:wght@400;500&display=swap');
+@import url('https://fonts.googleapis.com/css2?family=Material+Symbols+Outlined:wght,FILL@100..700,0..1&display=swap');
+
+@tailwind base;
+@tailwind components;
+@tailwind utilities;
+
+@layer base {
+  body {
+    @apply bg-background text-on-background min-h-screen font-outfit selection:bg-primary selection:text-on-primary antialiased;
+  }
+}
+
+@keyframes scrollCommit {
+  0% { transform: translateY(0); }
+  100% { transform: translateY(-50%); }
+}
+
+.commit-line {
+  animation: scrollCommit 40s linear infinite;
+}
+
+.glow-secondary {
+  text-shadow: 0 0 8px rgba(78, 222, 163, 0.6);
+}
+
+.electric-glow:hover {
+  box-shadow: 0 0 20px rgba(77, 142, 255, 0.15);
+}
+
+/* Hide scrollbar for the animated side */
+.no-scrollbar::-webkit-scrollbar {
+  display: none;
+}
+.no-scrollbar {
+  -ms-overflow-style: none;
+  scrollbar-width: none;
+}
+
+/* Smooth transitions */
+.transition-all {
+  transition-property: all;
+  transition-timing-function: cubic-bezier(0.4, 0, 0.2, 1);
+  transition-duration: 150ms;
+}
+
+/* Glassmorphism custom classes */
+.glass-card {
+  @apply bg-surface-container border border-white/5 backdrop-blur-md rounded-xl transition-all;
+}
+
+.glass-card-hover {
+  @apply hover:border-white/10 hover:shadow-lg hover:shadow-primary/5 hover:-translate-y-[2px] transition-all;
+}
