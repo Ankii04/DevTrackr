@@ -9,42 +9,55 @@ Designed with decoupling in mind, the platform processes heavy VCS metric collec
 ## 1. System Architecture & Flow Diagrams
 
 ### High-Level System Architecture
-```mermaid
-flowchart TD
-    subgraph Client [Vite React Frontend]
-        UI[Glassmorphic Responsive UI]
-        State[Auth & Dashboard Contexts]
-        Axios[Request Interceptor: Bearer JWT]
-    end
-
-    subgraph API [Express Gateway]
-        Router[Express Routes & Auth Middleware]
-        Limiter[Rate Limiters & Validators]
-    end
-
-    subgraph SyncEngine [Asynchronous Sync Engine]
-        Queue[Background Task Scheduler]
-        GitHubAPI[GitHub REST API Crawlers]
-    end
-
-    subgraph AIEngine [Gemini AI Insight Engine]
-        Model[Google Gemini 2.5 Flash Model]
-        Parser[Context Token Compressor & JSON Parser]
-    end
-
-    subgraph DB [Persistence Layer]
-        Mongo[(MongoDB Atlas Cluster)]
-    end
-
-    UI --> Axios
-    Axios --> Router
-    Router --> Limiter
-    Limiter --> Queue
-    Queue --> GitHubAPI
-    GitHubAPI --> Mongo
-    Router --> Model
-    Model --> Parser
-    Parser --> Mongo
+```text
++-----------------------------------------------------------+
+|                  VITE REACT CLIENT (UI)                   |
+|  +-----------------------------------------------------+  |
+|  |             Glassmorphic Responsive UI              |  |
+|  +--------------------------+--------------------------+  |
+|                             |                             |
+|  +--------------------------v--------------------------+  |
+|  |           Auth & Dashboard Context State            |  |
+|  +--------------------------+--------------------------+  |
+|                             |                             |
+|  +--------------------------v--------------------------+  |
+|  |          Axios Request Interceptor (Bearer JWT)     |  |
+|  +--------------------------+--------------------------+  |
++-----------------------------|-----------------------------+
+                              | HTTPS Requests
+                              v
++-----------------------------------------------------------+
+|                   EXPRESS GATEWAY ROUTER                  |
+|  +-----------------------------------------------------+  |
+|  |        Express Routes & Auth Middleware (JWT)       |  |
+|  +--------------------------+--------------------------+  |
+|                             |                             |
+|  +--------------------------v--------------------------+  |
+|  |               Rate Limiters & Validators            |  |
+|  +--------------------------+--------------------------+  |
++-----------------------------|-----------------------------+
+               +--------------+--------------+
+               | (asynchronous jobs)         | (analytical routes)
+               v                             v
++-----------------------------+ +-----------------------------+
+|    ASYNC SYNC ENGINE        | |   GEMINI AI INSIGHT ENGINE  |
+| +-------------------------+ | | +-------------------------+ |
+| |Background Task Scheduler| | | |Google Gemini 2.5 Flash  | |
+| +------------+------------+ | | +------------+------------+ |
+|              |              | |              |              |
+| +------------v------------+ | | +------------v------------+ |
+| |GitHub REST API Crawlers | | | |Compressor & JSON Parser | |
+| +------------+------------+ | | +------------+------------+ |
++--------------|--------------+ +--------------|--------------+
+               |                               |
+               | Fetch / Write                 | Parse / Cache
+               v                               v
++-----------------------------------------------------------+
+|                  MONGODB PERSISTENCE LAYER                |
+|               +-----------------------------+             |
+|               |    MongoDB Atlas Cluster    |             |
+|               +-----------------------------+             |
++-----------------------------------------------------------+
 ```
 
 ---
@@ -52,31 +65,55 @@ flowchart TD
 ### Non-Blocking Background Repository Synchronization
 When a developer triggers a sync command (or triggers "Sync All"), the sync is immediately offloaded to a background thread to prevent UI locking.
 
-```mermaid
-sequenceDiagram
-    actor User
-    participant Frontend as React Client
-    participant Backend as Express Server
-    participant DB as MongoDB Atlas
-    participant GitHub as GitHub API v3
-
-    User->>Frontend: Clicks "Sync Repository"
-    Frontend->>Backend: POST /api/github/sync/:repoId (JWT Auth)
-    Backend->>DB: Set Repository.syncStatus = "syncing"
-    Backend-->>Frontend: 202 Accepted { message: "Sync started in background" }
-    Note over Frontend: UI updates card to spinning loader state.
-
-    Note over Backend: Asynchronous Sync Job Begins
-    Backend->>GitHub: Fetch latest commits (last 100 snapshots)
-    GitHub-->>Backend: Return Commit list
-    Backend->>GitHub: Fetch active and merged Pull Requests
-    GitHub-->>Backend: Return PR list
-    Backend->>GitHub: Fetch Repository Issues & Contributor lists
-    GitHub-->>Backend: Return Issue/Contributor list
-
-    Backend->>DB: Bulk Write snapshot updates
-    Backend->>DB: Set Repository.syncStatus = "completed", syncError = null
-    Note over Frontend: Single-interval polling detects "completed" & displays success toasts
+```text
+User           React Client            Express Server           MongoDB Atlas          GitHub API v3
+ |                   |                       |                        |                      |
+ | Clicks "Sync"     |                       |                        |                      |
+ |------------------>|                       |                        |                      |
+ |                   | POST /sync/:repoId    |                        |                      |
+ |                   |---------------------->|                        |                      |
+ |                   |                       | Set syncStatus="syncing"                      |
+ |                   |                       |----------------------->|                      |
+ |                   |                       |                        |                      |
+ |                   | 202 Accepted          |                        |                      |
+ |                   |<----------------------|                        |                      |
+ |                   |                       |                        |                      |
+ |                   | [UI Loader Spinner]   |                        |                      |
+ |                   |                       |=== ASYNC BACKGROUND JOB BEGINS ===            |
+ |                   |                       |                        |                      |
+ |                   |                       | Fetch Commits          |                      |
+ |                   |                       |---------------------------------------------->|
+ |                   |                       |                        |                      |
+ |                   |                       | Return Commits         |                      |
+ |                   |                       |<----------------------------------------------|
+ |                   |                       |                        |                      |
+ |                   |                       | Fetch Pull Requests    |                      |
+ |                   |                       |---------------------------------------------->|
+ |                   |                       |                        |                      |
+ |                   |                       | Return PRs             |                      |
+ |                   |                       |<----------------------------------------------|
+ |                   |                       |                        |                      |
+ |                   |                       | Fetch Issues & Contribs|                      |
+ |                   |                       |---------------------------------------------->|
+ |                   |                       |                        |                      |
+ |                   |                       | Return details         |                      |
+ |                   |                       |<----------------------------------------------|
+ |                   |                       |                        |                      |
+ |                   |                       | Bulk write snapshots   |                      |
+ |                   |                       |----------------------->|                      |
+ |                   |                       |                        |                      |
+ |                   |                       | Set syncStatus="completed"                    |
+ |                   |                       |----------------------->|                      |
+ |                   |                       |                        |                      |
+ |                   | Poll Status           |                        |                      |
+ |                   |---------------------->|                        |                      |
+ |                   |                       | Read status            |                      |
+ |                   |                       |----------------------->|                      |
+ |                   |                       |                        |                      |
+ |                   | Return Status="completed"                      |                      |
+ |                   |<----------------------|                        |                      |
+ |                   |                       |                        |                      |
+ |                   | [Displays Success]    |                        |                      |
 ```
 
 
@@ -84,78 +121,63 @@ sequenceDiagram
 
 The persistence layer is structured using Mongoose across five primary schemas to store normalized snapshot histories, credentials, and cached reports.
 
-```mermaid
-erDiagram
-    USER ||--o{ REPOSITORY : owns
-    REPOSITORY ||--o{ COMMIT_SNAPSHOT : tracks
-    REPOSITORY ||--o{ PULL_REQUEST : tracks
-    REPOSITORY ||--o{ AI_REPORT : caches
-
-    USER {
-        ObjectId _id PK
-        String username
-        String email UK
-        String passwordHash
-        String githubAccessToken
-        String githubUsername
-        String githubId
-        String geminiApiKey
-        Date connectedAt
-        Date createdAt
-    }
-
-    REPOSITORY {
-        ObjectId _id PK
-        ObjectId userId FK
-        String githubId UK
-        String name
-        String fullName
-        String description
-        String htmlUrl
-        Number stars
-        Number forks
-        String language
-        String syncStatus
-        String syncError
-        Date lastSyncedAt
-    }
-
-    COMMIT_SNAPSHOT {
-        ObjectId _id PK
-        ObjectId repositoryId FK
-        String sha UK
-        String message
-        Date date
-        Object author
-        Number additions
-        Number deletions
-    }
-
-    PULL_REQUEST {
-        ObjectId _id PK
-        ObjectId repositoryId FK
-        Number number UK
-        String title
-        String state
-        String author
-        Date createdAt
-        Date mergedAt
-        Date closedAt
-        Number cycleTimeHours
-    }
-
-    AI_REPORT {
-        ObjectId _id PK
-        ObjectId repositoryId FK
-        ObjectId userId FK
-        String reportType
-        Object content
-        String rawPrompt
-        Number tokensUsed
-        Boolean isMock
-        String mockReason
-        Date createdAt
-    }
+```text
+           +-----------------------+
+           |         USER          |
+           +-----------------------+
+           | _id (PK)              |
+           | username              |
+           | email (UK)            |
+           | passwordHash          |
+           | githubAccessToken     |
+           | githubUsername        |
+           | githubId              |
+           | geminiApiKey          |
+           | connectedAt           |
+           | createdAt             |
+           +-----------+-----------+
+                       | 
+                       | owns (1 to Many)
+                       |
+                       v
+           +-----------------------+
+           |      REPOSITORY       |
+           +-----------------------+
+           | _id (PK)              |
+           | userId (FK)           | <----+
+           | githubId (UK)         |      |
+           | name                  |      |
+           | fullName              |      |
+           | description           |      |
+           | htmlUrl               |      |
+           | stars                 |      |
+           | forks                 |      |
+           | language              |      |
+           | syncStatus            |      |
+           | syncError             |      |
+           | lastSyncedAt          |      |
+           +-----+-----+-----+-----+      |
+                 |     |     |            |
+  tracks         |     |     | tracks     | caches
+  (1 to Many)    |     |     +------------+------+
+  +--------------+     |                         |
+  |                    | tracks                  |
+  |                    | (1 to Many)             |
+  v                    v                         v
++------------------+ +------------------+ +------------------+
+| COMMIT_SNAPSHOT  | |   PULL_REQUEST   | |    AI_REPORT     |
++------------------+ +------------------+ +------------------+
+| _id (PK)         | | _id (PK)         | | _id (PK)         |
+| repositoryId (FK)| | repositoryId (FK)| | repositoryId (FK)|
+| sha (UK)         | | number (UK)      | | userId (FK) ----+
+| message          | | title            | | reportType       |
+| date             | | state            | | content          |
+| author (Object)  | | author           | | rawPrompt        |
+| additions        | | createdAt        | | tokensUsed       |
+| deletions        | | mergedAt         | | isMock           |
+|                  | | closedAt         | | mockReason       |
+|                  | | cycleTimeHours   | | createdAt        |
++------------------+ +------------------+ +------------------+
 ```
 
 ### Schema Attributes & Types
