@@ -1,7 +1,14 @@
 import axios from 'axios';
 
+let apiBaseUrl = import.meta.env.VITE_API_BASE_URL || 'http://localhost:5000/api';
+
+// Auto-normalize base URL to ensure it ends with '/api' when deploying to a custom host
+if (apiBaseUrl && !apiBaseUrl.endsWith('/api') && !apiBaseUrl.endsWith('/api/')) {
+  apiBaseUrl = apiBaseUrl.replace(/\/$/, '') + '/api';
+}
+
 const axiosInstance = axios.create({
-  baseURL: import.meta.env.VITE_API_BASE_URL || 'http://localhost:5000/api',
+  baseURL: apiBaseUrl,
   timeout: 30000, // 30s timeout
   headers: {
     'Content-Type': 'application/json'

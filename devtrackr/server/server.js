@@ -11,9 +11,28 @@ connectDB();
 const app = express();
 
 // Configure CORS
-const allowedOrigins = [env.CLIENT_URL, 'http://localhost:5173', 'http://127.0.0.1:5173'].filter(Boolean);
+const allowedOrigins = [env.CLIENT_URL, 'http://localhost:5173', 'http://127.0.0.1:5173']
+  .filter(Boolean)
+  .map(url => url.replace(/\/$/, '')); // Trim trailing slashes to prevent mismatches
+
 app.use(cors({
-  origin: allowedOrigins,
+  origin: function (origin, callback) {
+    // Allow requests with no origin (like mobile apps, curl, or postman)
+    if (!origin) return callback(null, true);
+
+    const cleanedOrigin = origin.replace(/\/$/, '');
+
+    // Check if origin matches allowed origins list or is any Vercel deployment subdomain
+    const isAllowed = allowedOrigins.includes(cleanedOrigin);
+    const isVercelSubdomain = cleanedOrigin.endsWith('.vercel.app');
+
+    if (isAllowed || isVercelSubdomain || env.NODE_ENV === 'development') {
+      callback(null, true);
+    } else {
+      console.warn(`[CORS BLOCK] Blocked request from unauthorized origin: ${origin}`);
+      callback(new Error('Not allowed by CORS'));
+    }
+  },
   credentials: true,
   methods: ['GET', 'POST', 'PUT', 'DELETE', 'OPTIONS'],
   allowedHeaders: ['Content-Type', 'Authorization']

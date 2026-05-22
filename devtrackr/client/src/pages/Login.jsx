@@ -68,7 +68,10 @@ const Login = () => {
   };
 
   const handleGitHubConnect = () => {
-    const apiBase = import.meta.env.VITE_API_BASE_URL || 'http://localhost:5000/api';
+    let apiBase = import.meta.env.VITE_API_BASE_URL || 'http://localhost:5000/api';
+    if (apiBase && !apiBase.endsWith('/api') && !apiBase.endsWith('/api/')) {
+      apiBase = apiBase.replace(/\/$/, '') + '/api';
+    }
     window.location.href = `${apiBase}/github/login`;
   };
 
