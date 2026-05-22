@@ -6,9 +6,32 @@ const Repository = require('../models/Repository');
 /**
  * Get commit frequency aggregated by day over the last 'days'
  */
-async function getCommitFrequency(repositoryId, days = 30) {
-  const startDate = new Date();
-  startDate.setDate(startDate.getDate() - days);
+async function getCommitFrequency(repositoryId, days = null) {
+  let startDate = new Date();
+
+  if (days && days !== 30) {
+    startDate.setDate(startDate.getDate() - days);
+  } else {
+    // Find the earliest commit for this repository
+    const earliestCommit = await CommitSnapshot.findOne({
+      repositoryId: new mongoose.Types.ObjectId(repositoryId)
+    }).sort({ date: 1 });
+
+    if (earliestCommit && earliestCommit.date) {
+      startDate = new Date(earliestCommit.date);
+      startDate.setHours(0, 0, 0, 0);
+
+      // Ensure a minimum visual window of 30 days so the chart remains aesthetically spacious
+      const diffTime = Math.abs(new Date() - startDate);
+      const diffDays = Math.ceil(diffTime / (1000 * 60 * 60 * 24));
+      if (diffDays < 30) {
+        startDate = new Date();
+        startDate.setDate(startDate.getDate() - 30);
+      }
+    } else {
+      startDate.setDate(startDate.getDate() - 30); // Default to last 30 days if no commits
+    }
+  }
 
   const stats = await CommitSnapshot.aggregate([
     {

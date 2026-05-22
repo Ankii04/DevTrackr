@@ -21,7 +21,7 @@ async function verifyRepoOwnership(repoId, userId) {
  */
 exports.getCommits = async (req, res, next) => {
   const { repoId } = req.params;
-  const days = req.query.days ? parseInt(req.query.days) : 30;
+  const days = req.query.days ? parseInt(req.query.days) : null;
 
   try {
     await verifyRepoOwnership(repoId, req.user._id);

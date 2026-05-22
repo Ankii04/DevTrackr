@@ -285,7 +285,7 @@ const RepoDetail = () => {
               <div className="grid grid-cols-1 lg:grid-cols-3 gap-gutter">
                 <div className="glass-card p-6 border border-white/5 lg:col-span-2 space-y-4">
                   <h4 className="font-label-caps text-label-caps text-on-surface-variant uppercase tracking-widest">
-                    Commit Frequency (Last 30 Days)
+                    Commit Frequency (Project Timeline)
                   </h4>
                   <CommitFrequencyChart data={commits} />
                 </div>

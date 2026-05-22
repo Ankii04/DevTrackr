@@ -188,7 +188,7 @@ const Dashboard = () => {
           <div className="glass-card p-6 border border-white/5 lg:col-span-2 space-y-4">
             <div className="flex justify-between items-center">
               <h4 className="font-label-caps text-label-caps text-on-surface-variant uppercase tracking-widest">
-                Commit Frequency (Last 30 Days)
+                Commit Frequency (Project Timeline)
               </h4>
             </div>
             {analyticsLoading ? <Loader variant="chart" /> : <CommitFrequencyChart data={analyticsData.commits} />}
