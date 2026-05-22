@@ -140,9 +140,14 @@ exports.repos = async (req, res, next) => {
     res.json(savedRepos);
   } catch (error) {
     console.error(`[GITHUB REPOS ERROR] Fetch failed: ${error.message}`);
-    // If external call fails, return already cached repositories
-    const cachedRepos = await Repository.find({ userId: user._id });
-    res.json(cachedRepos);
+    // If external call fails, attempt to return already cached repositories
+    try {
+      const cachedRepos = await Repository.find({ userId: user._id });
+      res.json(cachedRepos);
+    } catch (dbError) {
+      console.error(`[GITHUB REPOS DB FALLBACK ERROR] Failed to fetch cached repos: ${dbError.message}`);
+      res.status(503).json({ error: 'Network offline. Failed to retrieve cached repositories.' });
+    }
   }
 };
 
